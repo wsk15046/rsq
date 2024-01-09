@@ -47,14 +47,12 @@ func (p *producer) Start() {
 	p.monitor()
 
 	go func() {
-		t := time.NewTimer(0)
-		if !t.Stop() {
-			<-t.C
-		}
-		defer t.Stop()
+
+		const nBatchInit = 128
 
 		//batched send message
-		batchSize := 32
+		batchSize := nBatchInit
+
 		m := make(map[string]interface{}, batchSize)
 		index := 0
 
@@ -63,16 +61,6 @@ func (p *producer) Start() {
 			case <-p.quit:
 				p.Info("stop producer %s", p.Topic())
 				return
-			case <-t.C:
-				if len(m) > 0 {
-					_, err := p.xAdd(m, p.maxLen)
-					if err != nil {
-						p.Errorf("MQProducer publish failed error: %s", err.Error())
-					}
-
-					m = make(map[string]interface{}, batchSize)
-					index = 0
-				}
 			case node := <-p.sendChan:
 				cid := fmt.Sprintf("%s-%d-%s", node.Id, index, node.TagId)
 				m[cid] = node.Data
@@ -86,12 +74,25 @@ func (p *producer) Start() {
 
 					m = make(map[string]interface{}, batchSize)
 					index = 0
+				}
+			default:
+				if len(m) > 0 {
+					_, err := p.xAdd(m, p.maxLen)
+					if err != nil {
+						p.Errorf("MQProducer publish failed error: %s", err.Error())
+					}
+
+					m = make(map[string]interface{}, batchSize)
+					index = 0
 				} else {
-					if len(m) == 1 {
-						if !t.Stop() && len(t.C) > 0 {
-							<-t.C
-						}
-						t.Reset(10 * time.Millisecond)
+					select {
+					case <-p.quit:
+						p.Info("stop producer %s", p.Topic())
+						return
+					case node := <-p.sendChan:
+						cid := fmt.Sprintf("%s-%d-%s", node.Id, index, node.TagId)
+						m[cid] = node.Data
+						index++
 					}
 				}
 			}
@@ -195,6 +196,7 @@ func (p *producer) Publish(Id string, data []byte, tagIds ...string) error {
 			}
 
 			p.sendChan <- node
+
 		}
 	} else {
 		for _, tagId := range tagIds {
@@ -208,6 +210,7 @@ func (p *producer) Publish(Id string, data []byte, tagIds ...string) error {
 				p.sendChan <- node
 			}
 		}
+
 	}
 
 	return nil

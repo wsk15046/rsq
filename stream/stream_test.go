@@ -14,6 +14,15 @@ import (
 	"time"
 )
 
+func TestSlice(t *testing.T) {
+	a := make([]int, 0, 10)
+
+	var b []int
+
+	t.Log(a)
+	t.Log(len(b))
+}
+
 func TestStreamConsumer(t *testing.T) {
 	topic := "rsq:consumer_test"
 	max := 10000
@@ -28,7 +37,7 @@ func TestStreamConsumer(t *testing.T) {
 
 	tags := []string{"$", "c1", "c2"}
 
-	var src [10000]string
+	var src [100000]string
 	for i := 0; i < len(src); i++ {
 		tag := tags[rand.Intn(len(tags))]
 		src[i] = tag

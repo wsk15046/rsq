@@ -6,6 +6,7 @@ type IMQProducer interface {
 	Topic() string
 	Start()
 	Publish(id string, data []byte, tagId ...string) (err error)
+	Stop()
 }
 
 type IMQConsumer interface {
